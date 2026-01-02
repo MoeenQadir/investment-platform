@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -5,7 +7,6 @@ from pydantic import BaseModel
 from app.db.database import get_db
 from app.db.models import Portfolio, Holding, User
 from app.services.finance import compute_provider_symbol
-import json
 
 router = APIRouter()
 
@@ -28,7 +29,7 @@ class HoldingCreate(BaseModel):
     marketplace: str
     exchange: str
     quantity: float
-    buy_date: str  # ISO date
+    buy_date: date  # ISO date is parsed into date
     buy_price: float
     broker: str = None
     currency: str = "USD"
@@ -40,7 +41,7 @@ class HoldingResponse(BaseModel):
     exchange: str
     provider_symbol: str
     quantity: float
-    buy_date: str
+    buy_date: date
     buy_price: float
     broker: str = None
     currency: str = None
@@ -76,8 +77,6 @@ def bulk_upsert_holdings(portfolio_id: int, holdings: List[HoldingCreate], db: S
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
     
-    from datetime import datetime
-    
     result = []
     for holding_data in holdings:
         provider_symbol = compute_provider_symbol(
@@ -96,7 +95,7 @@ def bulk_upsert_holdings(portfolio_id: int, holdings: List[HoldingCreate], db: S
         if existing:
             db.delete(existing)
         
-        buy_date = datetime.fromisoformat(holding_data.buy_date).date()
+        buy_date = holding_data.buy_date
         
         holding = Holding(
             portfolio_id=portfolio_id,
