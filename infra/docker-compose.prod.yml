@@ -1,0 +1,30 @@
+version: '3.8'
+
+# Production override for docker-compose.yml
+# Usage: docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d
+
+services:
+  api:
+    build:
+      target: production
+    environment:
+      # Override with production values
+      DATABASE_URL: ${DATABASE_URL:-postgresql://investment_user:investment_pass@postgres:5432/investment_db}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://n8n:5678/webhook}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    volumes: []  # Remove volume mounts in production
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000  # Remove --reload in production
+
+  web:
+    build:
+      target: production
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    volumes: []  # Remove volume mounts in production
+
+  n8n:
+    environment:
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-https}
+      - WEBHOOK_URL=${WEBHOOK_URL:-https://localhost:5678}
+
