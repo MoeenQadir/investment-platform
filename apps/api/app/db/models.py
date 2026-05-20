@@ -2,9 +2,9 @@ from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKe
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 import uuid
-from datetime import datetime
 import enum
 from app.db.database import Base
+from app.utils.time import utcnow
 
 class RunType(str, enum.Enum):
     RESEARCH = "RESEARCH"
@@ -24,9 +24,11 @@ class RunStatus(str, enum.Enum):
 
 class User(Base):
     __tablename__ = "users"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, nullable=True, unique=True, index=True)
+    clerk_user_id = Column(String, nullable=True, unique=True, index=True)
+    created_at = Column(DateTime, nullable=False, default=utcnow)
 
 class Portfolio(Base):
     __tablename__ = "portfolios"
@@ -52,7 +54,7 @@ class Holding(Base):
     buy_price = Column(Float, nullable=False)
     broker = Column(String, nullable=True)
     currency = Column(String, nullable=True, default="USD")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     
     portfolio = relationship("Portfolio", back_populates="holdings")
 
@@ -70,8 +72,8 @@ class ResearchRun(Base):
     warnings_json = Column(JSON, nullable=True)
     metrics_json = Column(JSON, nullable=True)
     report_md = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     
     user = relationship("User")
     portfolio = relationship("Portfolio")
@@ -84,7 +86,7 @@ class RunSource(Base):
     run_id = Column(UUID(as_uuid=True), ForeignKey("research_runs.id"), nullable=False)
     title = Column(String, nullable=False)
     url = Column(String, nullable=False)
-    retrieved_at = Column(DateTime, default=datetime.utcnow)
+    retrieved_at = Column(DateTime, default=utcnow)
     
     run = relationship("ResearchRun", back_populates="sources")
 
@@ -107,12 +109,62 @@ class SectorAlias(Base):
 
 class SectorETFProxy(Base):
     __tablename__ = "sector_etf_proxies"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     marketplace = Column(String, nullable=False)  # "US", "IN", etc.
     canonical_sector_id = Column(Integer, ForeignKey("canonical_sectors.id"), nullable=False)
     etf_symbol = Column(String, nullable=False)
     is_active = Column(Integer, default=1)
-    
+
     canonical_sector = relationship("CanonicalSector")
+
+
+class SecCompany(Base):
+    __tablename__ = "sec_companies"
+
+    cik = Column(String(10), primary_key=True)
+    ticker = Column(String, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    exchange = Column(String, nullable=True)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+class SecFiling(Base):
+    __tablename__ = "sec_filings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    cik = Column(String(10), ForeignKey("sec_companies.cik"), nullable=False, index=True)
+    accession_no = Column(String, nullable=False, unique=True, index=True)
+    form_type = Column(String, nullable=False, index=True)
+    filed_at = Column(DateTime, nullable=False, index=True)
+    period_of_report = Column(Date, nullable=True)
+    primary_doc_url = Column(String, nullable=True)
+    filing_index_url = Column(String, nullable=True)
+    created_at = Column(DateTime, default=utcnow)
+
+    company = relationship("SecCompany")
+
+
+class SecForm4Transaction(Base):
+    __tablename__ = "sec_form4_transactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    filing_id = Column(Integer, ForeignKey("sec_filings.id"), nullable=False, index=True)
+    cik = Column(String(10), nullable=False, index=True)
+    issuer_cik = Column(String(10), nullable=True, index=True)
+    issuer_ticker = Column(String, nullable=True, index=True)
+    insider_name = Column(String, nullable=False)
+    insider_cik = Column(String(10), nullable=True)
+    relationship_type = Column(String, nullable=True)
+    transaction_date = Column(Date, nullable=False, index=True)
+    transaction_code = Column(String(2), nullable=True)
+    security_title = Column(String, nullable=True)
+    shares = Column(Float, nullable=True)
+    price_per_share = Column(Float, nullable=True)
+    acquired_disposed_code = Column(String(1), nullable=True)
+    shares_owned_following = Column(Float, nullable=True)
+    is_derivative = Column(Integer, default=0)
+    created_at = Column(DateTime, default=utcnow)
+
+    filing = relationship("SecFiling")
 

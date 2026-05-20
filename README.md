@@ -6,7 +6,7 @@ A production-grade monorepo for agentic investment research workflows with Next.
 
 - **Frontend (`/apps/web`)**: Next.js 14 App Router - calls ONLY the FastAPI backend
 - **Backend (`/apps/api`)**: FastAPI - system of record, handles ALL deterministic finance calculations
-- **Orchestration (`/infra/n8n`)**: n8n workflows - orchestrates steps and uses LLM only for narrative synthesis
+- **Orchestration (`/infra/local/n8n`)**: n8n workflows - orchestrates steps and uses LLM only for narrative synthesis
 - **Database**: PostgreSQL with Alembic migrations
 
 ## Quick Start
@@ -20,7 +20,7 @@ A production-grade monorepo for agentic investment research workflows with Next.
 
 ```bash
 # Build and start all services
-docker compose -f infra/docker-compose.yml up --build
+docker compose -f infra/local/docker-compose.yml up --build
 
 # Services will be available at:
 # - Web: http://localhost:3000
@@ -35,7 +35,7 @@ docker compose -f infra/docker-compose.yml up --build
 1. **Start the database and run migrations:**
 ```bash
 # Start only postgres first
-docker compose -f infra/docker-compose.yml up postgres -d
+docker compose -f infra/local/docker-compose.yml up postgres -d
 
 # Run migrations (using Python 3.11 - required for pandas compatibility)
 cd apps/api
@@ -51,11 +51,11 @@ python scripts/seed_data.py
 
 2. **Import n8n workflow:**
    - Access n8n at http://localhost:5678
-   - Import workflow from `infra/n8n/workflows/research-workflow.json`
+   - Import workflow from `infra/local/n8n/workflows/research-workflow.json`
 
 3. **Start all services:**
 ```bash
-docker compose -f infra/docker-compose.yml up
+docker compose -f infra/local/docker-compose.yml up
 ```
 
 ### Sample End-to-End Run
@@ -77,9 +77,13 @@ docker compose -f infra/docker-compose.yml up
 │   ├── web/          # Next.js frontend
 │   └── api/          # FastAPI backend
 ├── infra/
-│   ├── docker-compose.yml
-│   └── n8n/
-│       └── workflows/
+│   ├── local/             # Docker Compose + n8n workflows
+│   │   ├── docker-compose.yml
+│   │   ├── docker-compose.prod.yml
+│   │   └── n8n/workflows/
+│   └── aws/               # Terraform (modules + envs/dev|prod)
+│       ├── modules/
+│       └── envs/
 ├── docs/
 │   └── CONTRACTS.md  # API contracts and specifications
 ├── AGENTS.md         # Architecture rules for agents
@@ -146,7 +150,7 @@ See `docs/CONTRACTS.md` for detailed contract specifications.
 
 1. **Start n8n:**
 ```bash
-docker compose -f infra/docker-compose.yml up n8n -d
+docker compose -f infra/local/docker-compose.yml up n8n -d
 ```
 
 2. **Access n8n UI:**
@@ -155,7 +159,7 @@ docker compose -f infra/docker-compose.yml up n8n -d
 
 3. **Import workflow:**
    - Click "Workflows" → "Import from File"
-   - Select `infra/n8n/workflows/research-workflow.json`
+   - Select `infra/local/n8n/workflows/research-workflow.json`
    - Click "Save" and "Activate" (toggle in top right)
 
 4. **Get webhook URL:**
@@ -177,7 +181,7 @@ export WEBHOOK_URL=https://yourdomain.com:5678
 export N8N_WEBHOOK_URL=https://yourdomain.com:5678/webhook/research-start
 
 # Deploy
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d
+docker compose -f infra/local/docker-compose.yml -f infra/local/docker-compose.prod.yml up -d
 ```
 
 **Configure reverse proxy (nginx) for n8n:**
@@ -203,7 +207,7 @@ server {
 
 1. Sign up at https://n8n.io/cloud
 2. Create a new workflow
-3. Import `infra/n8n/workflows/research-workflow.json`
+3. Import `infra/local/n8n/workflows/research-workflow.json`
 4. Get your webhook URL from n8n Cloud
 5. Update `N8N_WEBHOOK_URL` in your API environment variables
 
@@ -275,10 +279,10 @@ docker compose -f docker-compose.n8n.yml up -d
 **Workflow not triggering?**
 - Check workflow is **Activated** (green toggle in n8n UI)
 - Verify webhook URL matches `N8N_WEBHOOK_URL` in API
-- Check n8n logs: `docker compose -f infra/docker-compose.yml logs n8n`
+- Check n8n logs: `docker compose -f infra/local/docker-compose.yml logs n8n`
 
 **Can't access n8n UI?**
-- Verify n8n is running: `docker compose -f infra/docker-compose.yml ps`
+- Verify n8n is running: `docker compose -f infra/local/docker-compose.yml ps`
 - Check port 5678 is not blocked by firewall
 - Try accessing via IP instead of localhost
 
@@ -384,7 +388,7 @@ export NEXT_PUBLIC_API_URL="https://api.yourdomain.com"
 export CORS_ORIGINS="https://yourdomain.com,https://www.yourdomain.com"
 
 # Deploy
-docker compose -f infra/docker-compose.yml -f infra/docker-compose.prod.yml up -d --build
+docker compose -f infra/local/docker-compose.yml -f infra/local/docker-compose.prod.yml up -d --build
 ```
 
 #### Step 3: Configure Reverse Proxy (nginx example)
@@ -466,7 +470,7 @@ The following deployment issues were identified and fixed:
 **Frontend (apps/web):**
 - `NEXT_PUBLIC_API_URL`: Backend API URL (must start with `NEXT_PUBLIC_` for client-side access)
 
-**n8n (infra/docker-compose.yml):**
+**n8n (infra/local/docker-compose.yml):**
 - `N8N_BASIC_AUTH_USER`: Basic auth username (default: `admin`)
 - `N8N_BASIC_AUTH_PASSWORD`: Basic auth password (default: `admin`)
 - `DB_POSTGRESDB_HOST`: PostgreSQL host
@@ -489,12 +493,12 @@ The following deployment issues were identified and fixed:
 ### Logs
 ```bash
 # View all logs
-docker compose -f infra/docker-compose.yml logs -f
+docker compose -f infra/local/docker-compose.yml logs -f
 
 # View specific service logs
-docker compose -f infra/docker-compose.yml logs -f api
-docker compose -f infra/docker-compose.yml logs -f web
-docker compose -f infra/docker-compose.yml logs -f n8n
+docker compose -f infra/local/docker-compose.yml logs -f api
+docker compose -f infra/local/docker-compose.yml logs -f web
+docker compose -f infra/local/docker-compose.yml logs -f n8n
 ```
 
 ### Database Migrations

@@ -63,10 +63,10 @@ docker --version
 cd ~/investment-research-platform
 
 # 1. Start PostgreSQL database
-docker compose -f infra/docker-compose.yml up postgres -d
+docker compose -f infra/local/docker-compose.yml up postgres -d
 
 # 2. Verify database is running (should show "healthy")
-docker compose -f infra/docker-compose.yml ps
+docker compose -f infra/local/docker-compose.yml ps
 
 # 3. Start API server (in a new terminal)
 cd apps/api
@@ -125,7 +125,7 @@ pnpm install
 ```bash
 # Option A: With Docker (easiest)
 cd ~/investment-research-platform
-docker compose -f infra/docker-compose.yml up postgres -d
+docker compose -f infra/local/docker-compose.yml up postgres -d
 
 # Option B: Local PostgreSQL
 # Make sure PostgreSQL is installed and running on port 5432

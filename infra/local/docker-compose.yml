@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: investment_pass
       POSTGRES_DB: investment_db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,7 +19,7 @@ services:
 
   api:
     build:
-      context: ../apps/api
+      context: ../../apps/api
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
@@ -31,12 +31,12 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ../apps/api:/app
+      - ../../apps/api:/app
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   web:
     build:
-      context: ../apps/web
+      context: ../../apps/web
       dockerfile: Dockerfile
       target: development
     ports:
@@ -46,7 +46,7 @@ services:
     depends_on:
       - api
     volumes:
-      - ../apps/web:/app
+      - ../../apps/web:/app
       - /app/node_modules
       - /app/.next
 
@@ -71,7 +71,7 @@ services:
       - DB_POSTGRESDB_PASSWORD=investment_pass
     volumes:
       - n8n_data:/home/node/.n8n
-      - ../infra/n8n/workflows:/data/workflows
+      - ./n8n/workflows:/data/workflows
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,11 +1,64 @@
-from typing import List, Dict, Optional
+from typing import Dict, Optional
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-import yfinance as yf
-import pandas as pd
 import numpy as np
 from app.services.sector import resolve_sector_etf, get_market_etf
-from app.services.finance import fetch_stock_data, compute_returns
+from app.services.providers import get_provider
+from app.utils.time import utcnow
+
+
+def get_days_since_filing(db: Session, ticker: str) -> Optional[int]:
+    """Return whole days since the most recent 10-K/10-Q/8-K filing for `ticker`.
+
+    Returns None if no company or filing is found.
+    """
+    from app.db.models import SecCompany, SecFiling
+
+    if not ticker:
+        return None
+    company = (
+        db.query(SecCompany)
+        .filter(SecCompany.ticker == ticker.upper())
+        .first()
+    )
+    if company is None:
+        return None
+    filing = (
+        db.query(SecFiling)
+        .filter(SecFiling.cik == company.cik)
+        .filter(SecFiling.form_type.in_(["10-K", "10-Q", "8-K"]))
+        .order_by(SecFiling.filed_at.desc())
+        .first()
+    )
+    if filing is None or filing.filed_at is None:
+        return None
+    delta = utcnow() - filing.filed_at
+    return max(delta.days, 0)
+
+
+def get_days_since_form4(db: Session, ticker: str) -> Optional[int]:
+    """Return whole days since the most recent Form 4 transaction for `ticker`."""
+    from app.db.models import SecCompany, SecForm4Transaction
+
+    if not ticker:
+        return None
+    company = (
+        db.query(SecCompany)
+        .filter(SecCompany.ticker == ticker.upper())
+        .first()
+    )
+    if company is None:
+        return None
+    txn = (
+        db.query(SecForm4Transaction)
+        .filter(SecForm4Transaction.issuer_cik == company.cik)
+        .order_by(SecForm4Transaction.transaction_date.desc())
+        .first()
+    )
+    if txn is None or txn.transaction_date is None:
+        return None
+    delta = datetime.now().date() - txn.transaction_date
+    return max(delta.days, 0)
 
 def score_market_driver(stock_return: float, market_etf: str = "SPY") -> float:
     """Score market-wide driver (0..1).
@@ -17,18 +70,17 @@ def score_market_driver(stock_return: float, market_etf: str = "SPY") -> float:
     try:
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=5)
-        
-        ticker = yf.Ticker(market_etf)
-        hist = ticker.history(start=start_date, end=end_date + timedelta(days=1))
-        if len(hist) < 2:
+
+        hist = get_provider().fetch_stock_data(market_etf, start_date, end_date)
+        if hist is None or len(hist) < 2:
             return 0.0
-        
+
         market_return = hist['Close'].pct_change().iloc[-1]
-        
+
         base = min(1.0, abs(market_return) / 0.015)
         align = 1.0 if np.sign(stock_return) == np.sign(market_return) else 0.3
         return base * align
-    except Exception:
+    except (ValueError, KeyError, IndexError, TypeError, AttributeError):
         return 0.0
 
 def score_sector_driver(stock_return: float, sector_etf: str) -> float:
@@ -36,18 +88,17 @@ def score_sector_driver(stock_return: float, sector_etf: str) -> float:
     try:
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=5)
-        
-        ticker = yf.Ticker(sector_etf)
-        hist = ticker.history(start=start_date, end=end_date + timedelta(days=1))
-        if len(hist) < 2:
+
+        hist = get_provider().fetch_stock_data(sector_etf, start_date, end_date)
+        if hist is None or len(hist) < 2:
             return 0.0
-        
+
         sector_return = hist['Close'].pct_change().iloc[-1]
-        
+
         base = min(1.0, abs(sector_return) / 0.02)
         align = 1.0 if np.sign(stock_return) == np.sign(sector_return) else 0.3
         return base * align
-    except Exception:
+    except (ValueError, KeyError, IndexError, TypeError, AttributeError):
         return 0.0
 
 def score_filings_driver(days_since_filing: Optional[int]) -> float:
@@ -124,7 +175,8 @@ def score_drivers_for_event(
     marketplace: str,
     canonical_sector_id: Optional[int] = None,
     days_since_filing: Optional[int] = None,
-    days_since_form4: Optional[int] = None
+    days_since_form4: Optional[int] = None,
+    ticker: Optional[str] = None,
 ) -> Dict:
     """Score all drivers and return ranked list.
     
@@ -155,10 +207,14 @@ def score_drivers_for_event(
     else:
         scores['sector'] = 0.0
     
-    # Filings driver
+    lookup_ticker = ticker or provider_symbol
+
+    if days_since_filing is None and lookup_ticker:
+        days_since_filing = get_days_since_filing(db, lookup_ticker)
     scores['filings'] = score_filings_driver(days_since_filing)
-    
-    # Insider driver
+
+    if days_since_form4 is None and lookup_ticker:
+        days_since_form4 = get_days_since_form4(db, lookup_ticker)
     scores['insider'] = score_insider_driver(days_since_form4)
     
     # Flow/technical driver
@@ -197,4 +253,3 @@ def score_drivers_for_event(
         'driver_count': len(drivers),
         'scores': scores
     }
-

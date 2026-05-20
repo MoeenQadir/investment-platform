@@ -9,6 +9,32 @@ const api = axios.create({
   },
 })
 
+// Token getter — wire from a Clerk-aware hook in components (e.g. useAuth().getToken).
+// On the server side, pass a token explicitly via setAuthToken.
+let _tokenGetter: (() => Promise<string | null>) | null = null
+
+export function setAuthTokenGetter(fn: () => Promise<string | null>): void {
+  _tokenGetter = fn
+}
+
+export function setAuthToken(token: string | null): void {
+  if (token) {
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+  } else {
+    delete api.defaults.headers.common['Authorization']
+  }
+}
+
+api.interceptors.request.use(async (config) => {
+  if (_tokenGetter && !config.headers.Authorization) {
+    const token = await _tokenGetter()
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+  }
+  return config
+})
+
 export interface Portfolio {
   id: number
   name: string

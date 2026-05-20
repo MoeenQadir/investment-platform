@@ -1,18 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from app.auth import get_current_user
 from app.db.database import get_db
-from app.db.models import ResearchRun, Portfolio, Holding, RunType, RunStatus, TriggerType
+from app.db.models import ResearchRun, Portfolio, Holding, RunType, RunStatus, TriggerType, User
 from app.services.portfolio_metrics import detect_price_move_events_for_portfolio
-from app.services.drivers import score_drivers_for_event
 import uuid
-import json
 import os
 import httpx
 from pydantic import BaseModel
 
 router = APIRouter()
 
-DEMO_USER_ID = 1
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://localhost:5678/webhook/explain/start")
 
 class ExplainRunRequest(BaseModel):
@@ -21,8 +19,19 @@ class ExplainRunRequest(BaseModel):
     trigger_payload: dict = {}
 
 @router.post("/run")
-async def create_explain_run(request: ExplainRunRequest, db: Session = Depends(get_db)):
-    portfolio = db.query(Portfolio).filter(Portfolio.id == request.portfolio_id).first()
+async def create_explain_run(
+    request: ExplainRunRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    portfolio = (
+        db.query(Portfolio)
+        .filter(
+            Portfolio.id == request.portfolio_id,
+            Portfolio.user_id == current_user.id,
+        )
+        .first()
+    )
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
     
@@ -62,7 +71,7 @@ async def create_explain_run(request: ExplainRunRequest, db: Session = Depends(g
     run_id = uuid.uuid4()
     run = ResearchRun(
         id=run_id,
-        user_id=DEMO_USER_ID,
+        user_id=current_user.id,
         portfolio_id=request.portfolio_id,
         run_type=RunType.EXPLAIN,
         trigger_type=trigger_type_enum,

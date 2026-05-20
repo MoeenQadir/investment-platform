@@ -50,3 +50,15 @@ n8n workflow → FastAPI (for metrics/compute) → LLM (narrative only) → Fast
 - Future: India support (NSE => ticker.NS, BSE => ticker.BO)
 - Schema designed to support multiple marketplaces without refactoring
 
+## Auth (Clerk)
+- All Clerk JWT verification happens in apps/api/app/auth.py via JWKS, never duplicated elsewhere.
+- Every FastAPI route that touches user-scoped data MUST take Depends(get_current_user). Routes that don't need a user (health, public reference data) explicitly note 'public' in a docstring.
+- The User row is the join key. We upsert by clerk_user_id on first sign-in. Never use the email as a primary identifier; emails are mutable in Clerk.
+- Frontend never embeds CLERK_SECRET_KEY — only NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY. The secret key is API-side only.
+
+## EDGAR Pipeline
+- Every SEC HTTP call goes through apps/api/app/services/edgar/sec_client.SecClient. Never call httpx.get on sec.gov directly.
+- SEC_USER_AGENT env var must be set to 'AppName contact@email' format. Missing/empty value MUST raise on client construction.
+- CIK is stored as a 10-digit zero-padded string. Use _pad_cik helper at every boundary that accepts user/JSON input.
+- Form 4 parsing uses defusedxml only. Stdlib xml.etree is forbidden.
+- cik_sync and filing_sync MUST be idempotent — they are safe to re-run.

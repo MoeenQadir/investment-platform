@@ -1,17 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from app.auth import get_current_user
 from app.db.database import get_db
 from app.db.models import ResearchRun, Portfolio, Holding, RunType, RunStatus, User
 from app.services.portfolio_metrics import compute_portfolio_metrics
 import uuid
-import json
 import os
 import httpx
 
 router = APIRouter()
 
-DEMO_USER_ID = 1
 N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://localhost:5678/webhook/research/start")
 
 class ResearchRunRequest(BaseModel):
@@ -20,11 +19,22 @@ class ResearchRunRequest(BaseModel):
     strategy: str = "default"
 
 @router.post("/run")
-async def create_research_run(request: ResearchRunRequest, db: Session = Depends(get_db)):
-    portfolio = db.query(Portfolio).filter(Portfolio.id == request.portfolio_id).first()
+async def create_research_run(
+    request: ResearchRunRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    portfolio = (
+        db.query(Portfolio)
+        .filter(
+            Portfolio.id == request.portfolio_id,
+            Portfolio.user_id == current_user.id,
+        )
+        .first()
+    )
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
-    
+
     holdings = db.query(Holding).filter(Holding.portfolio_id == request.portfolio_id).all()
     
     # Create holdings snapshot
@@ -51,7 +61,7 @@ async def create_research_run(request: ResearchRunRequest, db: Session = Depends
     run_id = uuid.uuid4()
     run = ResearchRun(
         id=run_id,
-        user_id=DEMO_USER_ID,
+        user_id=current_user.id,
         portfolio_id=request.portfolio_id,
         run_type=RunType.RESEARCH,
         status=RunStatus.QUEUED,

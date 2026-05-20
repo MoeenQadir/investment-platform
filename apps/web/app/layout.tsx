@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import { ClerkProvider } from '@clerk/nextjs'
+import { AuthBridge } from '@/components/auth-bridge'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -12,9 +14,13 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
+    <ClerkProvider>
+      <html lang="en">
+        <body>
+          <AuthBridge>{children}</AuthBridge>
+        </body>
+      </html>
+    </ClerkProvider>
   )
 }
 

@@ -1,12 +1,36 @@
-from fastapi import APIRouter, Depends, HTTPException
+import hmac
+import os
+import uuid
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
+
 from app.db.database import get_db
 from app.db.models import ResearchRun, RunStatus, RunSource
-from pydantic import BaseModel
-from typing import List, Optional
-import uuid
 
 router = APIRouter()
+
+
+def verify_n8n_secret(
+    x_n8n_secret: Optional[str] = Header(default=None, alias="X-N8N-Secret"),
+) -> None:
+    """Constant-time check of the shared secret n8n sends on every webhook call.
+
+    Set N8N_WEBHOOK_SECRET in both the API env and n8n's HTTP Request node
+    Authorization config. Missing env var on the API side means the gate is
+    effectively open — fail closed if the var is set but the header doesn't match.
+    """
+    expected = os.getenv("N8N_WEBHOOK_SECRET", "").strip()
+    if not expected:
+        # No secret configured — preserve dev-loop behaviour. Production deploys MUST set this.
+        return
+    if not x_n8n_secret or not hmac.compare_digest(x_n8n_secret, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing X-N8N-Secret header",
+        )
 
 class Source(BaseModel):
     title: str
@@ -26,7 +50,7 @@ class FailRequest(BaseModel):
     message: str
     partial_metrics_json: Optional[dict] = None
 
-@router.post("/complete")
+@router.post("/complete", dependencies=[Depends(verify_n8n_secret)])
 def webhook_complete(request: CompleteRequest, db: Session = Depends(get_db)):
     try:
         run_uuid = uuid.UUID(request.run_id)
@@ -65,7 +89,7 @@ def webhook_complete(request: CompleteRequest, db: Session = Depends(get_db)):
     
     return {"status": "ok", "run_id": request.run_id}
 
-@router.post("/fail")
+@router.post("/fail", dependencies=[Depends(verify_n8n_secret)])
 def webhook_fail(request: FailRequest, db: Session = Depends(get_db)):
     try:
         run_uuid = uuid.UUID(request.run_id)
