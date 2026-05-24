@@ -1,12 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAuth } from '@clerk/nextjs'
 import { portfolioApi, Portfolio, Holding } from '@/lib/api'
-import axios from 'axios'
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export default function PortfolioPage() {
+  const { isSignedIn } = useAuth()
   const [portfolios, setPortfolios] = useState<Portfolio[]>([])
   const [selectedPortfolio, setSelectedPortfolio] = useState<Portfolio | null>(null)
   const [holdings, setHoldings] = useState<Holding[]>([])
@@ -24,9 +23,20 @@ export default function PortfolioPage() {
   })
 
   useEffect(() => {
-    // For v1: load demo portfolio (id=1)
-    loadPortfolio(1)
-  }, [])
+    if (isSignedIn) loadPortfolios()
+  }, [isSignedIn])
+
+  const loadPortfolios = async () => {
+    try {
+      const res = await portfolioApi.list()
+      setPortfolios(res.data)
+      if (res.data.length > 0) {
+        loadPortfolio(res.data[0].id)
+      }
+    } catch (error) {
+      console.error('Error loading portfolios:', error)
+    }
+  }
 
   const loadPortfolio = async (id: number) => {
     try {

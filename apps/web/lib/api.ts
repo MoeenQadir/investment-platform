@@ -71,6 +71,7 @@ export interface ResearchRun {
 }
 
 export const portfolioApi = {
+  list: () => api.get<Portfolio[]>('/api/portfolio'),
   create: (name: string) => api.post<Portfolio>('/api/portfolio', { name }),
   get: (id: number) => api.get<Portfolio>(`/api/portfolio/${id}`),
   listHoldings: (id: number) => api.get<Holding[]>(`/api/portfolio/${id}/holdings`),

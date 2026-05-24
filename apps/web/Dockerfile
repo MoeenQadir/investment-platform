@@ -11,7 +11,7 @@ COPY package.json pnpm-lock.yaml* package-lock.json* ./
 # Install dependencies
 # Use npm if pnpm-lock.yaml doesn't exist, otherwise use pnpm
 RUN if [ -f pnpm-lock.yaml ]; then \
-      pnpm install --frozen-lockfile; \
+      pnpm install --no-frozen-lockfile; \
     else \
       npm install; \
     fi

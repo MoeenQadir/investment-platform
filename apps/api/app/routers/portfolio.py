@@ -58,6 +58,14 @@ def _get_owned_portfolio(db: Session, portfolio_id: int, user_id: int) -> Portfo
     return portfolio
 
 
+@router.get("", response_model=List[PortfolioResponse])
+def list_portfolios(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return db.query(Portfolio).filter(Portfolio.user_id == current_user.id).all()
+
+
 @router.post("", response_model=PortfolioResponse)
 def create_portfolio(
     portfolio: PortfolioCreate,

@@ -1,19 +1,31 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { runsApi, portfolioApi, researchApi, ResearchRun } from '@/lib/api'
+import { useAuth } from '@clerk/nextjs'
+import { runsApi, portfolioApi, researchApi, ResearchRun, Portfolio } from '@/lib/api'
 import Link from 'next/link'
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts'
 
 export default function DashboardPage() {
+  const { isSignedIn } = useAuth()
   const [runs, setRuns] = useState<ResearchRun[]>([])
-  const [selectedPortfolioId, setSelectedPortfolioId] = useState<number>(1)
+  const [portfolios, setPortfolios] = useState<Portfolio[]>([])
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<number | null>(null)
 
   useEffect(() => {
-    loadRuns()
+    if (!isSignedIn) return
+    portfolioApi.list().then(res => {
+      setPortfolios(res.data)
+      if (res.data.length > 0) setSelectedPortfolioId(res.data[0].id)
+    }).catch(console.error)
+  }, [isSignedIn])
+
+  useEffect(() => {
+    if (selectedPortfolioId) loadRuns()
   }, [selectedPortfolioId])
 
   const loadRuns = async () => {
+    if (!selectedPortfolioId) return
     try {
       const res = await runsApi.list({ portfolio_id: selectedPortfolioId })
       setRuns(res.data)
@@ -23,6 +35,7 @@ export default function DashboardPage() {
   }
 
   const triggerResearch = async () => {
+    if (!selectedPortfolioId) return
     try {
       await researchApi.run(selectedPortfolioId)
       setTimeout(loadRuns, 1000)

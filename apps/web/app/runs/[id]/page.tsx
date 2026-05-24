@@ -2,26 +2,29 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import { useAuth } from '@clerk/nextjs'
 import { runsApi, ResearchRun } from '@/lib/api'
 
 export default function RunDetailPage() {
+  const { isSignedIn } = useAuth()
   const params = useParams()
   const runId = params.id as string
   const [run, setRun] = useState<ResearchRun | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!isSignedIn) return
     loadRun()
-    // Poll for status updates if running
     const interval = setInterval(() => {
       if (run?.status === 'RUNNING' || run?.status === 'QUEUED') {
         loadRun()
       }
     }, 3000)
     return () => clearInterval(interval)
-  }, [runId, run?.status])
+  }, [isSignedIn, runId, run?.status])
 
   const loadRun = async () => {
+    if (!isSignedIn) return
     try {
       const res = await runsApi.get(runId)
       setRun(res.data)
