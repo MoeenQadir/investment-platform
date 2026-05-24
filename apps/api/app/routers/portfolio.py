@@ -4,14 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from pydantic import BaseModel
+from app.auth import get_current_user
 from app.db.database import get_db
 from app.db.models import Portfolio, Holding, User
 from app.services.finance import compute_provider_symbol
 
 router = APIRouter()
-
-# Placeholder: single demo user (v1)
-DEMO_USER_ID = 1
 
 class PortfolioCreate(BaseModel):
     name: str
@@ -49,33 +47,53 @@ class HoldingResponse(BaseModel):
     class Config:
         from_attributes = True
 
+def _get_owned_portfolio(db: Session, portfolio_id: int, user_id: int) -> Portfolio:
+    portfolio = (
+        db.query(Portfolio)
+        .filter(Portfolio.id == portfolio_id, Portfolio.user_id == user_id)
+        .first()
+    )
+    if not portfolio:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    return portfolio
+
+
+@router.get("", response_model=List[PortfolioResponse])
+def list_portfolios(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return db.query(Portfolio).filter(Portfolio.user_id == current_user.id).all()
+
+
 @router.post("", response_model=PortfolioResponse)
-def create_portfolio(portfolio: PortfolioCreate, db: Session = Depends(get_db)):
-    # Ensure demo user exists
-    user = db.query(User).filter(User.id == DEMO_USER_ID).first()
-    if not user:
-        user = User(id=DEMO_USER_ID, email="demo@example.com")
-        db.add(user)
-        db.commit()
-    
-    db_portfolio = Portfolio(name=portfolio.name, user_id=DEMO_USER_ID)
+def create_portfolio(
+    portfolio: PortfolioCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db_portfolio = Portfolio(name=portfolio.name, user_id=current_user.id)
     db.add(db_portfolio)
     db.commit()
     db.refresh(db_portfolio)
     return db_portfolio
 
 @router.get("/{portfolio_id}", response_model=PortfolioResponse)
-def get_portfolio(portfolio_id: int, db: Session = Depends(get_db)):
-    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
-    if not portfolio:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-    return portfolio
+def get_portfolio(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return _get_owned_portfolio(db, portfolio_id, current_user.id)
 
 @router.post("/{portfolio_id}/holdings", response_model=List[HoldingResponse])
-def bulk_upsert_holdings(portfolio_id: int, holdings: List[HoldingCreate], db: Session = Depends(get_db)):
-    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
-    if not portfolio:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
+def bulk_upsert_holdings(
+    portfolio_id: int,
+    holdings: List[HoldingCreate],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _get_owned_portfolio(db, portfolio_id, current_user.id)
     
     result = []
     for holding_data in holdings:
@@ -119,11 +137,12 @@ def bulk_upsert_holdings(portfolio_id: int, holdings: List[HoldingCreate], db: S
     return result
 
 @router.get("/{portfolio_id}/holdings", response_model=List[HoldingResponse])
-def get_holdings(portfolio_id: int, db: Session = Depends(get_db)):
-    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
-    if not portfolio:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-    
+def get_holdings(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    _get_owned_portfolio(db, portfolio_id, current_user.id)
     holdings = db.query(Holding).filter(Holding.portfolio_id == portfolio_id).all()
     return holdings
 

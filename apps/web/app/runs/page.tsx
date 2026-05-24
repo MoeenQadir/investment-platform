@@ -1,19 +1,22 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useAuth } from '@clerk/nextjs'
 import { runsApi, ResearchRun } from '@/lib/api'
 import Link from 'next/link'
 
 export default function RunsPage() {
+  const { isSignedIn } = useAuth()
   const [runs, setRuns] = useState<ResearchRun[]>([])
   const [filterType, setFilterType] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState<string>('')
 
   useEffect(() => {
-    loadRuns()
-  }, [filterType, filterStatus])
+    if (isSignedIn) loadRuns()
+  }, [isSignedIn, filterType, filterStatus])
 
   const loadRuns = async () => {
+    if (!isSignedIn) return
     try {
       const params: any = {}
       if (filterType) params.type = filterType

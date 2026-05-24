@@ -17,8 +17,12 @@ class CompleteRequest(BaseModel):
     status: str  # "COMPLETED" or "COMPLETED_WITH_WARNINGS"
     warnings: Optional[dict] = None
     metrics_json: Optional[dict] = None
+    metrics: Optional[dict] = None  # alias accepted from n8n
     report_md: Optional[str] = None
     sources: Optional[List[Source]] = []
+
+    def effective_metrics(self) -> Optional[dict]:
+        return self.metrics_json or self.metrics
 
 class FailRequest(BaseModel):
     run_id: str
@@ -45,8 +49,8 @@ def webhook_complete(request: CompleteRequest, db: Session = Depends(get_db)):
     run.status = status_map.get(request.status, RunStatus.COMPLETED)
     if request.warnings:
         run.warnings_json = request.warnings
-    if request.metrics_json:
-        run.metrics_json = request.metrics_json
+    if request.effective_metrics():
+        run.metrics_json = request.effective_metrics()
     if request.report_md:
         run.report_md = request.report_md
     
@@ -64,6 +68,10 @@ def webhook_complete(request: CompleteRequest, db: Session = Depends(get_db)):
         db.commit()
     
     return {"status": "ok", "run_id": request.run_id}
+
+@router.post("/research-complete")
+def webhook_research_complete(request: CompleteRequest, db: Session = Depends(get_db)):
+    return webhook_complete(request, db)
 
 @router.post("/fail")
 def webhook_fail(request: FailRequest, db: Session = Depends(get_db)):
