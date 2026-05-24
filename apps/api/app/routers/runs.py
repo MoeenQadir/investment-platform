@@ -1,30 +1,38 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
+from app.auth import get_current_user
 from app.db.database import get_db
-from app.db.models import ResearchRun, RunType, RunStatus
+from app.db.models import ResearchRun, RunType, RunStatus, User
 import uuid
 
 router = APIRouter()
 
 @router.get("")
 def list_runs(
-    run_type: Optional[str] = Query(None),
+    type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     portfolio_id: Optional[int] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    query = db.query(ResearchRun)
-    
-    if run_type:
-        query = query.filter(ResearchRun.run_type == RunType(run_type))
+    query = db.query(ResearchRun).filter(ResearchRun.user_id == current_user.id)
+
+    if type:
+        try:
+            query = query.filter(ResearchRun.run_type == RunType(type))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid type: {type}")
     if status:
-        query = query.filter(ResearchRun.status == RunStatus(status))
+        try:
+            query = query.filter(ResearchRun.status == RunStatus(status))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
     if portfolio_id:
         query = query.filter(ResearchRun.portfolio_id == portfolio_id)
-    
+
     runs = query.order_by(ResearchRun.created_at.desc()).limit(100).all()
-    
+
     return [
         {
             "id": str(run.id),
@@ -39,16 +47,23 @@ def list_runs(
     ]
 
 @router.get("/{run_id}")
-def get_run(run_id: str, db: Session = Depends(get_db)):
+def get_run(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     try:
         run_uuid = uuid.UUID(run_id)
     except ValueError:
-        return {"error": "Invalid run_id"}
-    
-    run = db.query(ResearchRun).filter(ResearchRun.id == run_uuid).first()
+        raise HTTPException(status_code=400, detail="Invalid run_id")
+
+    run = db.query(ResearchRun).filter(
+        ResearchRun.id == run_uuid,
+        ResearchRun.user_id == current_user.id,
+    ).first()
     if not run:
-        return {"error": "Run not found"}
-    
+        raise HTTPException(status_code=404, detail="Run not found")
+
     return {
         "id": str(run.id),
         "run_type": run.run_type.value,
@@ -72,4 +87,3 @@ def get_run(run_id: str, db: Session = Depends(get_db)):
             for s in run.sources
         ]
     }
-

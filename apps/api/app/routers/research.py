@@ -11,7 +11,7 @@ import httpx
 
 router = APIRouter()
 
-N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://localhost:5678/webhook/research/start")
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL", "http://localhost:5678/webhook/research")
 
 class ResearchRunRequest(BaseModel):
     portfolio_id: int
@@ -24,19 +24,15 @@ async def create_research_run(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    portfolio = (
-        db.query(Portfolio)
-        .filter(
-            Portfolio.id == request.portfolio_id,
-            Portfolio.user_id == current_user.id,
-        )
-        .first()
-    )
+    portfolio = db.query(Portfolio).filter(
+        Portfolio.id == request.portfolio_id,
+        Portfolio.user_id == current_user.id,
+    ).first()
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
 
     holdings = db.query(Holding).filter(Holding.portfolio_id == request.portfolio_id).all()
-    
+
     # Create holdings snapshot
     holdings_snapshot = [
         {

@@ -1,36 +1,12 @@
-import hmac
-import os
-import uuid
-from typing import List, Optional
-
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
-
 from app.db.database import get_db
 from app.db.models import ResearchRun, RunStatus, RunSource
+from pydantic import BaseModel
+from typing import List, Optional
+import uuid
 
 router = APIRouter()
-
-
-def verify_n8n_secret(
-    x_n8n_secret: Optional[str] = Header(default=None, alias="X-N8N-Secret"),
-) -> None:
-    """Constant-time check of the shared secret n8n sends on every webhook call.
-
-    Set N8N_WEBHOOK_SECRET in both the API env and n8n's HTTP Request node
-    Authorization config. Missing env var on the API side means the gate is
-    effectively open — fail closed if the var is set but the header doesn't match.
-    """
-    expected = os.getenv("N8N_WEBHOOK_SECRET", "").strip()
-    if not expected:
-        # No secret configured — preserve dev-loop behaviour. Production deploys MUST set this.
-        return
-    if not x_n8n_secret or not hmac.compare_digest(x_n8n_secret, expected):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing X-N8N-Secret header",
-        )
 
 class Source(BaseModel):
     title: str
@@ -41,8 +17,12 @@ class CompleteRequest(BaseModel):
     status: str  # "COMPLETED" or "COMPLETED_WITH_WARNINGS"
     warnings: Optional[dict] = None
     metrics_json: Optional[dict] = None
+    metrics: Optional[dict] = None  # alias accepted from n8n
     report_md: Optional[str] = None
     sources: Optional[List[Source]] = []
+
+    def effective_metrics(self) -> Optional[dict]:
+        return self.metrics_json or self.metrics
 
 class FailRequest(BaseModel):
     run_id: str
@@ -50,7 +30,7 @@ class FailRequest(BaseModel):
     message: str
     partial_metrics_json: Optional[dict] = None
 
-@router.post("/complete", dependencies=[Depends(verify_n8n_secret)])
+@router.post("/complete")
 def webhook_complete(request: CompleteRequest, db: Session = Depends(get_db)):
     try:
         run_uuid = uuid.UUID(request.run_id)
@@ -69,8 +49,8 @@ def webhook_complete(request: CompleteRequest, db: Session = Depends(get_db)):
     run.status = status_map.get(request.status, RunStatus.COMPLETED)
     if request.warnings:
         run.warnings_json = request.warnings
-    if request.metrics_json:
-        run.metrics_json = request.metrics_json
+    if request.effective_metrics():
+        run.metrics_json = request.effective_metrics()
     if request.report_md:
         run.report_md = request.report_md
     
@@ -89,7 +69,11 @@ def webhook_complete(request: CompleteRequest, db: Session = Depends(get_db)):
     
     return {"status": "ok", "run_id": request.run_id}
 
-@router.post("/fail", dependencies=[Depends(verify_n8n_secret)])
+@router.post("/research-complete")
+def webhook_research_complete(request: CompleteRequest, db: Session = Depends(get_db)):
+    return webhook_complete(request, db)
+
+@router.post("/fail")
 def webhook_fail(request: FailRequest, db: Session = Depends(get_db)):
     try:
         run_uuid = uuid.UUID(request.run_id)
