@@ -1,9 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAuth } from '@clerk/nextjs'
+import { useAuth } from '@/lib/auth'
 import { runsApi, ResearchRun } from '@/lib/api'
 import Link from 'next/link'
+
+const statusBadge = (status: string) =>
+  `badge ${
+    status === 'COMPLETED' ? 'bg-emerald-400/10 text-emerald-300' :
+    status === 'COMPLETED_WITH_WARNINGS' ? 'bg-amber-400/10 text-amber-300' :
+    status === 'RUNNING' ? 'bg-sky-400/10 text-sky-300' :
+    status === 'FAILED' ? 'bg-rose-400/10 text-rose-300' :
+    'bg-slate-400/10 text-slate-300'
+  }`
 
 export default function RunsPage() {
   const { isSignedIn } = useAuth()
@@ -29,16 +38,19 @@ export default function RunsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-6">Research Runs</h1>
+    <div className="py-8">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <h1 className="text-3xl font-bold text-white">Research Runs</h1>
+        <p className="mt-1 text-sm text-slate-400">
+          All research and explanation runs across your portfolios
+        </p>
 
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex gap-4 mb-4">
+        <div className="glass-card p-6 mt-6">
+          <div className="mb-4 flex gap-4">
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="border rounded px-4 py-2"
+              className="select w-44"
             >
               <option value="">All Types</option>
               <option value="RESEARCH">Research</option>
@@ -47,7 +59,7 @@ export default function RunsPage() {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="border rounded px-4 py-2"
+              className="select w-56"
             >
               <option value="">All Statuses</option>
               <option value="QUEUED">Queued</option>
@@ -61,35 +73,31 @@ export default function RunsPage() {
           <div className="space-y-2">
             {runs.map((run) => (
               <Link key={run.id} href={`/runs/${run.id}`}>
-                <div className="border rounded p-4 hover:bg-gray-50 cursor-pointer">
+                <div className="group rounded-xl border border-white/10 p-4 transition-colors hover:border-emerald-400/30 hover:bg-white/[0.03]">
                   <div className="flex justify-between items-center">
-                    <div>
-                      <span className="font-medium">{run.run_type}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium text-white">{run.run_type}</span>
                       {run.trigger_type && (
-                        <span className="ml-2 text-gray-500">({run.trigger_type})</span>
+                        <span className="text-sm text-slate-500">({run.trigger_type})</span>
                       )}
-                      <span className="ml-4 text-sm text-gray-500">Portfolio #{run.portfolio_id}</span>
+                      <span className="text-sm text-slate-500">Portfolio #{run.portfolio_id}</span>
                     </div>
-                    <span className={`px-3 py-1 rounded text-sm ${
-                      run.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                      run.status === 'COMPLETED_WITH_WARNINGS' ? 'bg-yellow-100 text-yellow-800' :
-                      run.status === 'RUNNING' ? 'bg-blue-100 text-blue-800' :
-                      run.status === 'FAILED' ? 'bg-red-100 text-red-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {run.status}
-                    </span>
+                    <span className={statusBadge(run.status)}>{run.status}</span>
                   </div>
-                  <div className="text-sm text-gray-500 mt-1">
+                  <div className="text-sm text-slate-500 mt-1">
                     Created: {new Date(run.created_at).toLocaleString()}
                   </div>
                 </div>
               </Link>
             ))}
+            {runs.length === 0 && (
+              <p className="py-8 text-center text-sm text-slate-500">
+                No runs match the current filters.
+              </p>
+            )}
           </div>
         </div>
       </div>
     </div>
   )
 }
-

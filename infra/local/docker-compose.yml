@@ -26,10 +26,10 @@ services:
     environment:
       DATABASE_URL: postgresql://investment_user:investment_pass@postgres:5432/investment_db
       N8N_WEBHOOK_URL: http://n8n:5678/webhook
-      CORS_ORIGINS: http://localhost:3000,http://web:3000
+      CORS_ORIGINS: http://localhost:3000,http://web:3000,https://alphalens-research.vercel.app
       CLERK_JWKS_URL: https://neutral-husky-2.clerk.accounts.dev/.well-known/jwks.json
       CLERK_JWT_ISSUER: https://neutral-husky-2.clerk.accounts.dev
-      SEC_USER_AGENT: Dhruv Shah dhruvshah844@gmail.com
+      SEC_USER_AGENT: AlphaLens Research myselfxdeveloper@gmail.com
       EDGAR_RATE_LIMIT: "10"
     depends_on:
       postgres:
