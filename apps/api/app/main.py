@@ -8,13 +8,16 @@ import os
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Investment Research API",
-    description="API for investment research and explanation workflows",
+    title="AlphaLens Research API",
+    description="API for AlphaLens — AI-powered investment research and explanation workflows",
     version="1.0.0"
 )
 
 # CORS configuration - allow multiple origins from environment variable
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+cors_origins = os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:3000,https://alphalens-research.vercel.app",
+).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -31,5 +34,5 @@ app.include_router(webhooks.router, prefix="/api/webhooks/n8n", tags=["webhooks"
 
 @app.get("/")
 async def root():
-    return {"message": "Investment Research API"}
+    return {"message": "AlphaLens Research API"}
 
