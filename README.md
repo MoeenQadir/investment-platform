@@ -1,6 +1,6 @@
-# Investment Research & Explanation Platform
+# AlphaLens — Investment Research & Explanation Platform
 
-A production-grade monorepo for agentic investment research workflows with Next.js dashboard, FastAPI backend, PostgreSQL database, and n8n orchestration.
+A production-grade monorepo for agentic investment research workflows with a Next.js dashboard, FastAPI backend, PostgreSQL database, and n8n orchestration.
 
 ## Architecture Overview
 
@@ -336,6 +336,18 @@ Frontend (polls for status updates)
 
 ## Deployment Guide
 
+### Deploying the Frontend on Vercel
+
+The repo is pre-configured for Vercel via `vercel.json` (it points at `apps/web`):
+
+1. Push this repository to GitHub.
+2. In Vercel, import the repo. It will auto-detect the project from `vercel.json`.
+3. No build overrides needed — the default Next.js build runs with `npm ci`.
+4. Add the environment variables from `.env.example` (Clerk keys + `NEXT_PUBLIC_API_URL` pointing at your hosted FastAPI backend).
+5. Set the domain to your chosen `*.vercel.app` name, e.g. `alphalens-research.vercel.app`.
+
+> The FastAPI backend, PostgreSQL and n8n must be hosted separately (Docker Compose, Railway, Render, Fly.io, etc.). See the services below.
+
 ### Where to Deploy
 
 #### Development Environment
@@ -565,3 +577,5 @@ docker run -p 8000:8000 \
 - **n8n**: Consider n8n Cloud or dedicated instance for reliability
 - **Caching**: Add Redis for frequently accessed data
 
+#   i n v e s t m e n t - p l a t f o r m  
+ 
